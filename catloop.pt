@@ -1,0 +1,61 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+import oursql, os, codecs, pywikibot
+#import cPickle, codecs
+
+connection = oursql.connect(db='ptwiki_p', host='ptwiki.labsdb', read_default_file=os.path.expanduser('~/replica.my.cnf'))
+c = connection.cursor()
+c.execute(u'''SELECT
+ cl_to,
+ page_title
+ FROM categorylinks
+ INNER JOIN page ON cl_from = page_id
+ WHERE page_namespace = 14''')
+
+cats = {}
+for cat, subcat in c:
+  cat, subcat = cat.decode('utf-8'), subcat.decode('utf-8')
+  if cat in cats:
+    cats[cat].add(subcat)
+  else:
+    cats[cat] = {subcat}
+
+# cats é um dicionário em que a chave é o nome da categoria
+# e o valor é um set com os nomes de suas subcategorias
+
+#with open('catsdump.pkl', 'r') as f:
+#  cats = cPickle.load(f)
+
+loops = []
+loopssets = []
+path = []
+checked = {}
+def check(cat):
+  global cats, path, loops, loopssets, deep
+  if cat in cats:
+    if cat in path:
+      loop = path[path.index(cat):] + [cat]
+      if set(loop) not in loopssets:
+        loops.append(loop)
+        loopssets.append(set(loop))
+        #print 'LOOP!', u'>>'.join(loop)
+    elif cat not in checked:
+      path.append(cat)
+      for subcat in cats[cat]:
+        check(subcat)
+      if deep < len(path):
+        deep = len(path)
+      path.remove(cat)
+      checked[cat] = deep
+    elif deep < len(path) + checked[cat]:
+      deep = len(path) + checked[cat]
+
+for cat in cats:
+  deep = 0
+  check(cat)
+
+with codecs.open('catdeep.txt', 'w', 'utf-8') as f:
+  f.write(u'\n'.join(u'{} -> {}'.format(cat, deep) for cat, deep in sorted(checked.items(), key=lambda i:i[1], reverse=True)))
+
+lista = u'\n'.join(u'# ' + u' &gt; '.join(u'[[:Categoria:{0}|{0}]]'.format(cat) for cat in loop) for loop in sorted(loops, key=lambda x:len(x)))
+pywikibot.Page(pywikibot.Site(), u'Usuário:Danilo.mac/Loops de categorias').put(u'Lista de loops de categorias\n\nÚltima atualização: ~~~~~\n\n' + lista, comment=u'Bot: Atualizando lista')
