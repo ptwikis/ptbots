@@ -44,7 +44,7 @@ for title in config:
     text = page.get()
   except pywikibot.NoPage:
     continue
-  top = re.search(ur'(?s)^.*?(?=\n==)', text)
+  top = re.search(ur'(?s)^.*?(?=\n==|$)', text)
   page.text = top and top.group(0) or u''
 
   # Verifica a última data encontrada em cada seção e define se arquiva ou não
